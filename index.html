@@ -386,6 +386,7 @@ var SYSPROMPT=[
   "Keep responses clear and structured."
 ].join('\n');
 var activeLLM=-1, coolActive=false, msgN=0;
+var codeStore={};
 var feed=document.getElementById('feed');
 var inp=document.getElementById('uinput');
 var sbtn=document.getElementById('sbtn');
@@ -468,10 +469,15 @@ function renderDoc(text){
       var ct=code.join('\n');
       var cb=document.createElement('div');cb.className='codeblock';
       var cid='c'+Math.random().toString(36).slice(2);
-      cb.innerHTML='<div class="cbhdr"><span class="cblang">'+esc(lang)+'</span>'
-        +'<button class="cbcopy" id="'+cid+'" onclick="cpCode(\''+cid+'\',\''+ea(ct)+'\')">'
-        +'<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg>Copy</button></div>'
-        +'<pre>'+esc(ct)+'</pre>';
+      codeStore[cid]=ct;
+      var hdr=document.createElement('div');hdr.className='cbhdr';
+      var lbl=document.createElement('span');lbl.className='cblang';lbl.textContent=lang;
+      var cpb=document.createElement('button');cpb.className='cbcopy';cpb.id=cid;
+      cpb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg> Copy';
+      cpb.addEventListener('click',function(){cpCode(cid);});
+      hdr.appendChild(lbl);hdr.appendChild(cpb);
+      var pre=document.createElement('pre');pre.textContent=ct;
+      cb.appendChild(hdr);cb.appendChild(pre);
       frag.appendChild(cb);i++;continue;
     }
     if(/^## /.test(ln)){
@@ -499,12 +505,16 @@ function renderDoc(text){
   return frag;
 }
 
-function cpCode(id,raw){
-  var real=raw.replace(/\\n/g,'\n').replace(/\\'/g,"'").replace(/\\\\/g,'\\');
-  navigator.clipboard.writeText(real).then(function(){
+function cpCode(id){
+  var code=codeStore[id]||'';
+  navigator.clipboard.writeText(code).then(function(){
     var b=document.getElementById(id);if(!b)return;
-    b.textContent='Copied!';b.classList.add('done');
-    setTimeout(function(){b.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg>Copy';b.classList.remove('done');},2000);
+    b.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Copied!';
+    b.classList.add('done');
+    setTimeout(function(){
+      b.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" stroke-width="2"/></svg> Copy';
+      b.classList.remove('done');
+    },2500);
   });
 }
 
