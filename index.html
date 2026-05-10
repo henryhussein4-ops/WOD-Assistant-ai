@@ -625,12 +625,11 @@ function addTyping(){
 }
 function rmTyping(){var t=document.getElementById('typing');if(t)t.remove();}
 
-// === SEARCH ===
+// === SEARCH (with hard timeout so it never blocks the LLM) ===
 function doSearch(q){
-  var body=JSON.stringify({q:q,num:6});
+  var body=JSON.stringify({q:q,num:5});
   var hdrs={'Content-Type':'application/json','X-API-KEY':SERPERKEY};
   var proxies=[
-    SERPER_URL,
     'https://corsproxy.io/?url='+encodeURIComponent(SERPER_URL),
     'https://api.allorigins.win/raw?url='+encodeURIComponent(SERPER_URL)
   ];
@@ -641,7 +640,11 @@ function doSearch(q){
       .then(function(d){return(d&&(d.organic||d.knowledgeGraph))?d:tryS(i+1);})
       .catch(function(){return tryS(i+1);});
   }
-  return tryS(0);
+  // Hard 6s timeout — if search hangs, proceed without it
+  return Promise.race([
+    tryS(0),
+    new Promise(function(res){setTimeout(function(){res(null);},6000);})
+  ]);
 }
 function buildCtx(d){
   if(!d)return'';
