@@ -657,34 +657,31 @@ function wantsSearch(t){
   return['what','who','when','where','how','why','latest','news','today','price','best','top','search','find','explain','define','is ','are ','does ','can '].some(function(w){return lo.includes(w);})||t.length>22;
 }
 
-// === FETCH WITH TIMEOUT ===
-function fetchT(url, opts, ms){
-  ms = ms || 18000;
-  return Promise.race([
-    fetch(url, opts),
-    new Promise(function(_,rej){setTimeout(function(){rej(new Error('timeout'));},ms);})
-  ]);
-}
-
 // === LLM ===
 function callLLM(msg){
   var body=JSON.stringify({message:msg});
+  var hdrs={'Content-Type':'application/json','Authorization':'Bearer '+LLMKEY};
   function tryP(i){
-    if(i>=LLM_ATTEMPTS.length)return Promise.reject(new Error('All connections timed out. The free API may be busy — try again in a moment.'));
+    if(i>=LLM_ATTEMPTS.length)return Promise.reject(new Error('Failed to fetch'));
     var att=LLM_ATTEMPTS[i];
-    var hdrs={'Content-Type':'application/json'};
-    if(att.useKey)hdrs['Authorization']='Bearer '+LLMKEY;
-    return fetchT(att.url,{method:'POST',headers:hdrs,body:body},18000)
+    var h={'Content-Type':'application/json'};
+    if(att.useKey)h['Authorization']='Bearer '+LLMKEY;
+    return fetch(att.url,{method:'POST',headers:h,body:body})
       .then(function(r){return r.text();})
       .then(function(raw){
         var d=JSON.parse(raw);
         if(d.response||(d.status==='success')||d.success){activeLLM=i;return d;}
         return tryP(i+1);
       })
-      .catch(function(e){
-        if(i<LLM_ATTEMPTS.length-1)return tryP(i+1);
-        return Promise.reject(e);
-      });
+      .catch(function(){return tryP(i+1);});
+  }
+  if(activeLLM>=0){
+    var att=LLM_ATTEMPTS[activeLLM];
+    var h={'Content-Type':'application/json'};
+    if(att.useKey)h['Authorization']='Bearer '+LLMKEY;
+    return fetch(att.url,{method:'POST',headers:h,body:body})
+      .then(function(r){return r.json();})
+      .catch(function(){activeLLM=-1;return tryP(0);});
   }
   return tryP(0);
 }
@@ -710,19 +707,18 @@ function sendMsg(){
     var ctx=buildCtx(sd),srcs=getSrcs(sd);
     var full=SYSPROMPT+'\n\n'+(ctx?ctx+'\n\n':'')+'User: '+text;
     return callLLM(full).then(function(data){
+      rmTyping();
       var raw=data.response||data.message||'No response received.';
       addAI(renderDoc(raw),srcs,raw);
     });
   }).catch(function(err){
+    rmTyping();
     var ef=document.createDocumentFragment();
     var p=document.createElement('span');p.className='doc-p';p.style.color='#f87171';
     p.textContent=err.message;
     ef.appendChild(p);
     addAI(ef,[],'Error: '+err.message);
-  }).then(function(){
-    rmTyping();
-    startCooldown();
-  });
+  }).then(function(){startCooldown();});
 }
 
 inp.addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';});
